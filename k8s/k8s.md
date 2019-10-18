@@ -120,6 +120,89 @@ docker pull gcr.azk8s.cn/google-containers/xxx:yyy
 
 
 
+## Namespace
+
+- Namespace是对一组资源和对象的抽象集合，比如可以用来将系统内部的对象划分为不同的项目组或用户组。
+- 常见的pods, services, replication controllers和deployments等都是属于某一个namespace的（默认是default)。
+- node, persistentVolumes等则不属于任何namespace。
+- Namespace常用来隔离不同的用户，比如Kubernetes自带的服务一般运行在kube-system namespace中。
+
+**创建**
+
+```bash
+(1) 命令行直接创建
+$ kubectl create namespace new-namespace
+
+(2) 通过文件创建
+$ cat my-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: new-namespace
+
+$ kubectl create -f ./my-namespace.yaml
+```
+
+**删除**
+
+```bash
+$ kubectl delete namespaces new-namespace
+```
+
+
+
+## ReplicaSets
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: ReplicaSet
+metadata:
+  name: frontend
+  # these labels can be applied automatically
+  # from the labels in the pod template if not set
+  # labels:
+    # app: guestbook
+    # tier: frontend
+spec:
+  # this replicas value is default
+  # modify it according to your case
+  replicas: 3
+  # selector can be applied automatically
+  # from the labels in the pod template if not set,
+  # but we are specifying the selector here to
+  # demonstrate its usage.
+  selector:
+    matchLabels:
+      tier: frontend
+    matchExpressions:
+      - {key: tier, operator: In, values: [frontend]}
+  template:
+    metadata:
+      labels:
+        app: guestbook
+        tier: frontend
+    spec:
+      containers:
+      - name: php-redis
+        image: gcr.io/google_samples/gb-frontend:v3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        env:
+        - name: GET_HOSTS_FROM
+          value: dns
+          # If your cluster config does not include a dns service, then to
+          # instead access environment variables to find service host
+          # info, comment out the 'value: dns' line above, and uncomment the
+          # line below.
+          # value: env
+        ports:
+        - containerPort: 80
+```
+
+
+
 ## 样例
 
 `load-balancer-example.yaml`
