@@ -39,6 +39,211 @@ docker pull gcr.azk8s.cn/google-containers/xxx:yyy
 
 
 
+## 组件
+
+**Api Server**: 
+
+**Controller Manager**:
+
+**Scheduler**:
+
+**ectd**:
+
+**Kubelet**:
+
+**Kube-proxy**:
+
+**CoreDNS**: 为集群中的SVC创建一个域名IP的对应关系解析
+
+**Dashboard**:
+
+**Ingress Controller**: 官方只能实现4层代理，Ingress 可以实现7层
+
+**Federation**: 提供可以跨集群中心多k8s统一管理功能
+
+**Prometheous**: 集群检控
+
+**ELK**: 集群日志统一分析介入平台
+
+
+
+## 网络通讯
+
+- **同一个Pod的多个容器之间**：共享同一个网络命名空间，共享同一个协议栈。lo
+- **Pod之间**：Overlay Network
+  - pod1与pod2在同一台机器：pod1由docker0网桥直接发送至pod2，不经过Flannel
+  - pod1与pod2不在同一台机器：见Flannel
+- **Pod与Service之间**： 
+  - 各节点的Iptables规则
+  - lvs
+
+- **Pod到外网**： 查找路由表，转发数据表到宿主机网卡，宿主机网卡完成路由选择后，iptables执行masquerade，把源IP改成宿主网卡的IP，然后向外发送请求。（SNAT）
+- **外网访问Pod**: 借助Service的nodeport方式
+
+**Flannel**：
+
+介绍：
+
+​	 CoreOS为k8s设计的网络规划服务。
+
+功能：
+
+ - 让集群中不同节点主机创建的Docker容器具有全集群唯一的虚拟ip地址。
+
+ - 在这些ip地址间建立一个覆盖网络（Overlay Network），通过它可以将数据包原封不动的传递到容器内部
+
+与ETCD之间：
+
+- 存储管理Flannel可分配的IP地址段资源
+- 检控ETCD中每个Pod的实际地址，并在内存中建立维护Pod节点路由表
+
+![flannel.png](./flannel.png)
+
+
+
+**三层网络**：
+![network.png](./network.png)
+
+
+
+#### Pod
+
+![pod-lifecycle.png](./pod-lifecycle.png)
+
+###### Pod phase
+
+- Pending: Pod 已被k8s接收，但有一个或多个容器尚未创建。
+
+- Running: 该Pod已经绑定到一个node上，node中的所有容器都已创建，至少有一个容器正在运行，或者处于启动或重启状态
+
+- Succeeded: Pod中的所有容器都被成功终止，并不会再重启
+
+- Failed:Pod中的所有容器都已终止，并且至少一个容器失败终止，即容器非0状态退出或被系统终止。
+
+- Unknown:
+
+  
+
+###### Init C
+
+- 在Pod启动的过程中，Init容器会按照顺序在**网络和数据卷（由Pause控制）**初始化后启动。每个init C容器必须在上个init C 容器成功退出后才能启动；
+- 如果Pod重启，所有init C必须重新执行；（init C 幂等）
+
+**init模板**：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+ name: myapp-pod
+ labels: 
+  app: myapp
+spec:
+ containers:
+ - name: myapp-container
+   image: busybox
+   command: ['sh','-c','echo The app is running! && sleep 3600']
+ initContainers:
+ - name: init-myservice
+   image: busybox
+   command: ['sh','-c','until nsloopup myservice; do echo waiting for myservice; sleep2; done;']
+ - name: init-mydb
+   image: busybox
+   command: ['sh','-c','until nsloopup mydb; do echo waiting for mydb; sleep2; done;']
+   
+  
+```
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+ name: myservice
+spec: 
+ ports:
+ - protocol: TCP
+   port: 80
+   targetPort: 9376  
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: mydb
+spec:
+ ports:
+ - protocol: TCP
+   port: 80
+   targetPort: 9377
+
+```
+
+###### 探针
+
+- readliness 不通过，则状态不ready
+- Liveness 不通过，则干掉
+
+**检测探针-就绪检测**(readiness)
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+ name: readiness-httpget-pod
+spec: 
+ containers:
+ - name: readiness-httpget-container
+   image: xxx/myapp:v1
+   imagePullPolicy: IfNotPresent
+   readinessProbe:
+    httpGet:
+     port: 80
+     path: /index.html
+    initialDelaySeconds: 1
+    periodSeconds: 3
+```
+
+**检测探针-存活检测**(liveness)
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+ name: liveness-exec-pod
+spec:
+ containers:
+ - name: liveness-exec-container
+   image: busybox
+   imagePullPolicy: IfNotPresent
+   command: ['/bin/bash','-c','touch /tmp/file; sleep 60; rm -rf /tmp/file; sleep 3600']
+   livenessProbe:
+    exec:
+     command: ['test','-e','/tmp/file']
+    initialDelaySeconds: 1
+    periodSeconds: 3
+```
+
+###### 启动和退出
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+ name: lifecycle-demo
+spec:
+ containers:
+ - name: lifecycle-demo-container
+   image: nginx
+   lifecycle:
+    postStart:
+     exec:
+      command: ['/bin/sh','-c','echo Hello from the postStart handler > /usr/share/msg']
+    preStop:
+     exec:
+      command: ['/bin/sh','-c','echo Hello from the preStop handler > /usr/share/msg']
+```
+
+
+
 ## MiniKube 安装（Learning environment）
 
 #### win10环境
@@ -117,6 +322,94 @@ docker pull gcr.azk8s.cn/google-containers/xxx:yyy
     ```
     minikube delete
     ```
+
+
+
+## 集群安装
+
+**操作系统**：Centos7
+
+1. 设置主机名
+
+   ```bash
+   hostnamectl set-hostname k8s-master01
+   hostnamectl set-hostname k8s-node01
+   hostnamectl set-hostname k8s-node02
+   ```
+
+2. 设置所有主机的host文件，使主机互通
+
+   ```
+   192.168.66.10		k8s-master01
+   192.168.66.20		k8s-node01
+   192.168.66.21		k8s-node02
+   ```
+
+3. 安装依赖包
+
+   ```bash
+   yum install -y conntrack	ntpdate	ntp	ipvadm ipset jq iptables curl sysstat libseccomp wget vim net-tools git
+   ```
+
+4. 防火墙
+
+5. ```bash
+   systemctl stop firewalld 
+   systemctl disable firewalld
+   yum -y install iptables-services
+   systemctl start iptables
+   systemctl enable iptables
+   iptables -F
+   service iptables save
+   ```
+
+6. 关闭selinux
+
+   ```bash
+   # 关闭虚拟内存
+   swapoff -a && set -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+   # 关闭selinux
+   setenforce 0 && sed -i 's/^SELINUX=.*/SELINUX=disabled/' /etc/selinux/config
+   ```
+
+7. 调整内核参数
+
+   ```
+   # 开机自动使用
+   cat /etc/sysctl.d/kubernetes.conf
+   
+   net.bridge.bridge-nf-call-intables=1
+   net.bridge.bridge-nf-call-ip6tables=1
+   net.ipv6.conf.all.disable_ipv6=1
+   
+   # 立马生效
+   sysctl -p /etc/sysctl.d/kubernetes.conf
+   ```
+
+   
+
+8. 调整系统时区
+
+   ```
+   # 设置系统时区
+   timedatectl set-timezone Asia/Shanghai
+   
+   # 将当前UTC时间写入硬件时钟
+   timedatectl set-local-rtc 0
+   
+   # 重启依赖系统时间的服务
+   systemctl restart rsyslog
+   systemctl restart crond
+   ```
+
+9. 关闭不需要的服务
+
+   ```bash
+   systemctl stop postfix && systemctl disable postfix
+   ```
+
+10. 设置rsyslogd 和systemd journald
+11. 升级系统内核为4.44
 
 
 
@@ -267,11 +560,21 @@ kubectl delete deployment hello-world
 
 
 
+## 问题排查
+
+```
+kubectl describe pod <pod-name>
+
+kubectl log <pod-name> -c <container-name> 
+```
+
+
+
+
+
 
 
 ## 常用命令
-
-
 
 
 
