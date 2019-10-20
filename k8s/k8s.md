@@ -242,6 +242,15 @@ spec:
       command: ['/bin/sh','-c','echo Hello from the preStop handler > /usr/share/msg']
 ```
 
+#### Deployment
+
+Deployment为Pod和ReplicaSet提供一个声明式（declarative）方法，典型应用场景：
+
+- 定义Deployment来创建Pod和RS
+- 回滚升级和应用
+- 扩容和缩容
+- 暂停和继续deployment
+
 
 
 ## MiniKube 安装（Learning environment）
