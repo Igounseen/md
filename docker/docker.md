@@ -90,3 +90,65 @@ docker-machine rm $(docker-machine ls -q) # Delete all VMs and their disk images
 
 #### 6.Deploy your app
 
+
+
+## 数据卷与数据卷容器
+
+#### 数据卷
+
+地址：/var/lib/docker/volumes/
+
+- #### （1）docker run -itd -P -v /test:/data --name myhttp httpd
+
+- #### （2）docker run -itd -P -v /data --name myhttp httpd
+
+- #### （3）docker run -itd -P -v my_volume:/data --name myhttp httpd
+
+#### 数据卷容器
+
+1：创建数据卷容器
+
+```bash
+docker create -it -P -v test_volume:/data --name data_container httpd
+```
+
+2：使用上述数据卷容器启动新的容器
+
+```bash
+docker run -itd -P --volumes-from data_container --name myhttp1 httpd
+
+docker run -itd -P --volumes-from data_container --name myhttp2 httpd
+```
+
+
+
+#### 数据备份
+
+1：运行一个mysql数据库容器
+
+```bash
+docker run -itd --name mysql -e MYSQL_ROOT_PASSWORD=123456 -p 3306:3306 -v mysql_data:/var/lib/mysql mysql
+```
+
+2：备份mysql数据
+
+```bash
+docker run -it --rm --volumes-from mysql -v $(pwd):/backup alpine tar zcvf /backup/backup.tar.gz /var/lib/mysql
+```
+得到：`backup.tar.gz` 文件
+>--rm 备份后自动删除容器
+>
+>--volumes-from 加载上述mysql容器
+>
+>-v 挂载当前目录到新容器的/backup目录下
+>
+>tar zcvf /backup/backup.tar.gz /var/lib/mysql 在新容器内执行tar命令将mysql容器的/var/lib/mysql打包成backup.tar.gz放到当前目录下
+
+3：使用备份数据恢复
+
+```bash
+docker run -it --rm --volumes-from mysql -v $(pwd):/backup alpine tar zxvf /backup/backup.tar.gz -C /
+```
+
+
+
