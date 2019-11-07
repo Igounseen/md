@@ -92,6 +92,36 @@ docker-machine rm $(docker-machine ls -q) # Delete all VMs and their disk images
 
 
 
+## 网络
+
+```bash
+docker network inspect bridge
+
+docker network ls
+
+docker network create --driver bridge --subnet 172.30.0.0/16 --gateway 172.30.0.1 my_bridge
+```
+
+
+
+- 处于不同网络中的容器彼此间网络不通，可通过`docker network connect` 通信。
+
+- 默认bridge网络中所有容器间只能用IP相互访问。自定义bridge网络中所有容器除ip访问外，还可以直接用容器名作为hostname相互访问。（内嵌DNS）
+
+- docker run指定容器ip启动时仅适用于自定义网络
+
+- 容器启动时指定使用已经存在的容器的网络：--network=container:NAMEor ID
+
+  ```
+  docker run -itd --name mysql5 --network=container:mysql1 mysql /bin/bash
+  ```
+
+  
+
+
+
+
+
 ## 数据卷与数据卷容器
 
 #### 数据卷
