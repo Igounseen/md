@@ -1,5 +1,7 @@
 ## 消息中间件（MQ）概述
 
+消息队列已经逐渐成为企业IT系统内部通信的核心手段。它具有低耦合、可靠投递、广播、流量控制等功能。当今市面上有很多主流的消息中间件，如老牌的ActiveMQ、RabbitMQ，炙手可热的Kafka，阿里巴巴自主开发RocketMQ等。
+
 #### 1.为什么要使用MQ？
 
 主要场景：**异步**，**解耦**，**削峰填谷**
@@ -76,7 +78,7 @@ DB支持的最大QPS为1000，平常的时候，用户访问请求为100QPS，�
 
 
 
-## rabbitMQ
+## RabbitMQ
 
 #### 1.介绍
 
@@ -103,8 +105,7 @@ AMQP(Advanced Message Queuing Protocol)高级消息队列协议是应用层协�
 - **虚拟主机**：一个虚拟主机持有一组交换机、队列和绑定。为什么需要多个虚拟主机呢？很简单，RabbitMQ当中，*用户只能在虚拟主机的粒度进行权限控制。* 因此，如果需要禁止A组访问B组的交换机/队列/绑定，必须为A和B分别创建一个虚拟主机。每一个RabbitMQ服务器都有一个默认的虚拟主机“/”。
 
 - **交换机**：Exchange 用于转发消息，但是它不会做存储* ，如果没有 Queue bind 到 Exchange 的话，它会直接丢弃掉 Producer 发送过来的消息。
-  这里有一个比较重要的概念：
-
+  
 - **路由键** ：消息到交换机的时候，交互机会转发到对应的队列中，那么究竟转发到哪个队列，就要根据该路由键。
 
 - **绑定**：也就是交换机需要和队列相绑定，这其中如上图所示，是多对多的关系。
@@ -289,7 +290,7 @@ RabbitMQ集群模式主要有：单机模式，普通集群模式，镜像集群
 
 <img src="./rabbitmq-ha.png" width="350px" />
 
-## rocketMQ
+## RocketMQ
 
 #### 1.介绍
 
@@ -658,7 +659,13 @@ public class ProducerRecord<K, V> {
 
 - **发后即忘**： 上述代码`producer.send(record)`就是发后即忘。只管往broker发送，而不关心是否正确到达。这种方式稳定性最高，可靠性也最差。
 
-- **同步**： ` producer.send(record).get()`。实际上 send() 方法本身就是异步的，返回的 Future 对象可以使调用方稍后获得发送的结果。执行 send() 方法之后直接链式调用了 get() 方法来阻塞等待 Kafka 的响应，直到消息发送成功，或者发生异常。类似`Future<?>  ExecutorService.submit(Runnable task)`。返回对象`RecordMetadata `包含了当前消息的主题、分区号、分区中的偏移量（offset）、时间戳等元数据信息。
+- **同步**： ` producer.send(record).get()`。实际上 send() 方法本身就是异步的，返回的 Future 对象可以使调用方稍后获得发送的结果。
+
+  ```java
+  public Future<RecordMetadata> send(ProducerRecord<K, V> record)
+  ```
+
+  执行 send() 方法之后直接链式调用了 get() 方法来阻塞等待 Kafka 的响应，直到消息发送成功，或者发生异常。类似`Future<?>  ExecutorService.submit(Runnable task)`。返回对象`RecordMetadata `包含了当前消息的主题、分区号、分区中的偏移量（offset）、时间戳等元数据信息。
 
 - **异步**： 设置回调接口，例:
 
@@ -699,7 +706,7 @@ public class ProducerRecord<K, V> {
 
 
 
-整个生产者客户端由两个线程协调运行，这两个线程分别为主线程和 Sender 线程。在主线程中由 KafkaProducer 创建消息，然后通过可能的拦截器、序列化器和分区器的作用之后缓存到消息累加器中。Sender 线程负责从 RecordAccumulator 中获取消息并将其发送到 Kafka 中。
+整个生产者客户端由两个线程协调运行，这两个线程分别为主线程和 Sender 线程。在主线程中由 KafkaProducer 创建消息，然后通过可能的拦截器、序列化器和分区器的作用之后缓存到消息累加器中(双端队列)。Sender 线程负责从 RecordAccumulator 中获取消息并将其发送到 Kafka 中。
 
 ![](./kafka-producer.png)
 
@@ -804,7 +811,9 @@ consumer.subscribe(Pattern.compile("topic-.*"));
 consumer.assign(Arrays.asList(new TopicPartition("topic-demo", 0)));
 ```
 
-通过 subscribe() 方法订阅主题具有消费者自动再均衡的功能，在多个消费者的情况下可以根据分区分配策略来自动分配各个消费者与分区的关系。当消费组内的消费者增加或减少时，分区分配关系会自动调整，以实现消费负载均衡及故障自动转移。而通过 assign() 方法订阅分区时，是不具备消费者自动均衡的功能的。
+通过 subscribe() 方法订阅主题具有消费者自动再均衡的功能，在多个消费者的情况下可以根据分区分配策略来自动分配各个消费者与分区的关系。当消费组内的消费者增加或减少时，分区分配关系会自动调整，以实现消费负载均衡及故障自动转移。
+
+通过 assign() 方法订阅分区时，是不具备消费者自动均衡的功能的。
 
 
 
@@ -827,7 +836,7 @@ public long position(TopicPartition partition)
 public OffsetAndMetadata committed(TopicPartition partition)
 ```
 
-**自动提交**消费位移的方式非常简便，但自动位移提交的方式在正常情况下不会发生消息丢失或重复消费的现象。
+对于位移提交的具体时机的把握很有讲究，有可能会发生消息丢失或重复消费的现象。
 
 ![](./kafka-offset-commit.png)
 
@@ -845,7 +854,7 @@ public OffsetAndMetadata committed(TopicPartition partition)
       for (ConsumerRecord<String, String> record : records) {
           // 业务逻辑
       }
-      consumer.commitSync();
+    consumer.commitSync();
    ```
 
   
@@ -968,9 +977,28 @@ drwxr-xr-x   2 root root 4096 Sep  8 07:54 topic-create-3
 
 
 
+#### 6. 幂等性
+
+在很多要求严格的场景下，例如用Kafka处理交易数据，`Exactly Once`语义是必须的。我们可以通过让下游系统具有幂等性来配合Kafka的`At Least Once`语义来间接实现`Exactly Once`。但是：
+
+- 该方案要求下游系统支持幂等操作
+- 实现门槛相对较高，需要用户对Kafka的工作机制非常了解
 
 
-#### 6.事务消息
+
+Kafka引入了`Producer ID`（即`PID`）和`Sequence Number`。每个新的Producer在初始化的时候会被分配一个唯一的PID，该Producer发送数据的每个`<Topic, Partition>`都对应一个从0开始单调递增的`Sequence Number`。
+
+Broker端也会为每个`<PID, Topic, Partition>`维护一个序号，并且每次Commit一条消息时将其对应序号递增。对于接收的每条消息，如果其序号比Broker维护的序号（即最后一次Commit的消息的序号）大一，则Broker会接受它，否则将其丢弃。
+
+- 如果消息序号比Broker维护的序号大一以上，说明中间有数据尚未写入，也即乱序，此时Broker拒绝该消息，Producer抛出`InvalidSequenceNumber`
+
+- 如果消息序号小于等于Broker维护的序号，说明该消息已被保存，即为重复消息，Broker直接丢弃该消息，Producer抛出`DuplicateSequenceNumber`
+
+这样就保证了单个Producer对于同一个`<Topic, Partition>`的`Exactly Once`语义。
+
+
+
+#### 7.事务消息
 
 
 
@@ -1031,9 +1059,26 @@ while (true) {
 
 **注意** ： 不要把操作db的业务逻辑跟操作消息当成是一个事务。db的事务操作是CRUD，对应的数据源是db(例如mysql)，而操作消息是一系列生产和消费，对应的数据源是kafka，它们是两个独立的事务。
 
+#### 8.用户权限
+
+```bash
+#  为用户 alice 在 test（topic）上添加读写的权限
+kafka-acls.sh --authorizer-properties zookeeper.connect=ip:2181 --add --allow-principal User:alice --operation Read --operation Write --topic test
+
+# 对于 topic 为 test 的消息队列，拒绝来自 ip 为192.168.1.100账户为 zhangsan 进行 read 操作，其他用户都允许
+/kafka-acls.sh --authorizer-properties zookeeper.connect=ip:2181 --add --allow-principal User:* --allow-host * --deny-principal User:zhangsan --deny-host 192.168.1.100 --operation Read --topic test
+
+# 为 zhangsan 和 alice 添加all，以允许来自 ip 为192.168.1.100或者192.168.1.101的读写请求
+kafka-acls.sh --authorizer-properties zookeeper.connect=ip:2181 --add --allow-principal User:zhangsan --allow-principal User:alice --allow-host 192.168.1.100 --allow-host 192.168.1.101 --operation Read --operation Write --topic test
+
+# 列出 topic 为 test 的所有权限账户
+kafka-acls.sh --authorizer-properties zookeeper.connect=ip:2181 --list --topic test
+
+```
 
 
-#### 7.重要参数
+
+#### 9.重要参数
 
 生产者重要参数：
 
