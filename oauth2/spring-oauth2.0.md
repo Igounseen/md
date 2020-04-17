@@ -103,7 +103,9 @@ public interface HttpSecurityBuilder<H extends HttpSecurityBuilder<H>> extends
 
 
 
+`AuthenticationEntryPoint` 用来解决匿名用户访问无权限资源时的异常
 
+`AccessDeineHandler` 用来解决认证过的用户访问无权限资源时的异常
 
 
 

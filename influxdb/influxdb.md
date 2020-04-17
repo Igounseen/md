@@ -44,7 +44,7 @@ sudo service influxdb start
 #### Docker上安装
 
 ```bash
-docker run -d -p 8083:8083 -p8086:8086 --expose 8090 --expose 8099 --name influxDbService influxdb
+docker run -d -p 8083:8083 -p8086:8086 --name influxDbService influxdb
 ```
 
 > -d：deamon，后台启动
